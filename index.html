@@ -322,7 +322,7 @@ let scoresCache = []; // Cache local para performance
 // ─── REALTIME DATABASE FUNCTIONS ──────────────────────────────────────────────
 async function loadScores() {
   try {
-    const snapshot = await db.ref('scores').orderByChild('score').limitToLast(MAX_SCORES).once('value');
+    const snapshot = await db.ref('scores').once('value');
     const data = snapshot.val();
 
     if (!data) {
