@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VIBORA</title>
 
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <!-- Firebase RealtimeDB (sin módulos ES6) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase.js"></script>
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -305,6 +304,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBYt3TBAkyNbQb6nMgR4lR2ufMDEjg2itE",
   authDomain: "vibora-79252.firebaseapp.com",
   projectId: "vibora-79252",
+  databaseURL: "https://vibora-79252.firebaseio.com",
   storageBucket: "vibora-79252.firebasestorage.app",
   messagingSenderId: "155256784565",
   appId: "1:155256784565:web:0e394253bd3a6ce93fa0fc"
@@ -312,22 +312,27 @@ const firebaseConfig = {
 
 // Inicializar Firebase
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const SCORES_COLLECTION = 'scores';
+const db = firebase.database();
 
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let snake, dir, nextDir, food, score, highScore, gameLoop, difficulty, state;
 let scoresCache = []; // Cache local para performance
 
-// ─── FIRESTORE FUNCTIONS ─────────────────────────────────────────────────────
+// ─── REALTIME DATABASE FUNCTIONS ──────────────────────────────────────────────
 async function loadScores() {
   try {
-    const querySnapshot = await db.collection(SCORES_COLLECTION)
-      .orderBy('score', 'desc')
-      .limit(MAX_SCORES)
-      .get();
+    const snapshot = await db.ref('scores').orderByChild('score').limitToLast(MAX_SCORES).once('value');
+    const data = snapshot.val();
 
-    scoresCache = querySnapshot.docs.map(doc => doc.data());
+    if (!data) {
+      scoresCache = [];
+      return [];
+    }
+
+    scoresCache = Object.values(data)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, MAX_SCORES);
+
     return scoresCache;
   } catch(e) {
     console.error('Error loading scores:', e);
@@ -337,11 +342,11 @@ async function loadScores() {
 
 async function saveScore(name, pts, diff) {
   try {
-    await db.collection(SCORES_COLLECTION).add({
+    await db.ref('scores').push({
       name: name.toUpperCase().trim() || 'ANON',
       score: pts,
       diff,
-      timestamp: new Date(),
+      timestamp: Date.now(),
       date: new Date().toLocaleDateString('es')
     });
   } catch(e) {
