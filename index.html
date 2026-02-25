@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VIBORA</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Courier New', Courier, monospace;
+      color: #00ff41;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      letter-spacing: 0.4em;
+      color: #00ff41;
+      text-shadow: 0 0 10px #00ff41, 0 0 30px #00ff41;
+      margin-bottom: 0.5rem;
+    }
+
+    #hud {
+      display: flex;
+      gap: 3rem;
+      margin-bottom: 0.75rem;
+      font-size: 1rem;
+      letter-spacing: 0.15em;
+    }
+
+    #hud span { color: #aaffbb; }
+    #hud strong { color: #00ff41; }
+
+    #wrapper {
+      position: relative;
+      border: 2px solid #00ff41;
+      box-shadow: 0 0 15px #00ff4166, inset 0 0 15px #00110a;
+    }
+
+    canvas { display: block; }
+
+    /* Overlay genérico */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.88);
+      gap: 0.75rem;
+      padding: 1rem;
+      overflow-y: auto;
+    }
+
+    .overlay h2 {
+      font-size: 1.8rem;
+      letter-spacing: 0.3em;
+      color: #00ff41;
+      text-shadow: 0 0 8px #00ff41;
+    }
+
+    .overlay p {
+      font-size: 0.85rem;
+      color: #55cc77;
+      letter-spacing: 0.1em;
+    }
+
+    .final-score {
+      font-size: 1.1rem;
+      color: #aaffbb;
+    }
+
+    /* Selector de dificultad */
+    #diff-selector {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+
+    .diff-btn {
+      background: transparent;
+      border: 1px solid #00ff41;
+      color: #00ff41;
+      font-family: inherit;
+      font-size: 0.8rem;
+      letter-spacing: 0.1em;
+      padding: 0.35rem 0.75rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .diff-btn:hover, .diff-btn.active {
+      background: #00ff41;
+      color: #000;
+    }
+
+    .action-btn {
+      background: transparent;
+      border: 2px solid #00ff41;
+      color: #00ff41;
+      font-family: inherit;
+      font-size: 0.9rem;
+      letter-spacing: 0.2em;
+      padding: 0.45rem 1.2rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .action-btn:hover {
+      background: #00ff41;
+      color: #000;
+    }
+
+    .action-btn.secondary {
+      border-color: #336644;
+      color: #336644;
+      font-size: 0.8rem;
+    }
+
+    .action-btn.secondary:hover {
+      background: #336644;
+      color: #000;
+    }
+
+    /* Input de nombre */
+    #name-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+    }
+
+    #name-section label {
+      font-size: 0.8rem;
+      color: #aaffbb;
+      letter-spacing: 0.1em;
+    }
+
+    #player-name {
+      background: #050f07;
+      border: 1px solid #00ff41;
+      color: #00ff41;
+      font-family: inherit;
+      font-size: 1rem;
+      letter-spacing: 0.15em;
+      text-align: center;
+      padding: 0.4rem 0.75rem;
+      width: 180px;
+      outline: none;
+      text-transform: uppercase;
+    }
+
+    #player-name:focus {
+      box-shadow: 0 0 8px #00ff4166;
+    }
+
+    /* Tabla de ranking */
+    #leaderboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      max-height: 280px;
+    }
+
+    #leaderboard-table th {
+      color: #336644;
+      letter-spacing: 0.1em;
+      padding: 0.2rem 0.4rem;
+      text-align: left;
+      border-bottom: 1px solid #1a3322;
+      position: sticky;
+      top: 0;
+      background: rgba(5, 15, 7, 0.9);
+    }
+
+    #leaderboard-table td {
+      padding: 0.25rem 0.4rem;
+      color: #aaffbb;
+      border-bottom: 1px solid #0d1f0f;
+    }
+
+    #leaderboard-table tr.highlight td {
+      color: #ffdd00;
+    }
+
+    #leaderboard-table td.rank {
+      color: #336644;
+      width: 1.5rem;
+      text-align: center;
+    }
+
+    #leaderboard-table td.pts {
+      color: #00ff41;
+      text-align: right;
+      font-weight: bold;
+    }
+
+    #leaderboard-table td.diff-tag {
+      font-size: 0.65rem;
+      color: #336644;
+      text-align: right;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 0.25rem;
+    }
+
+    #overlay-menu { display: flex; }
+
+    .loading {
+      font-size: 0.8rem;
+      color: #336644;
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>VIBORA</h1>
+
+  <div id="hud">
+    <div><span>PUNTAJE </span><strong id="score-display">0</strong></div>
+    <div><span>RECORD  </span><strong id="hi-display">0</strong></div>
+  </div>
+
+  <div id="wrapper">
+    <canvas id="canvas" width="400" height="400"></canvas>
+
+    <!-- Pantalla de inicio -->
+    <div class="overlay" id="overlay-menu">
+      <h2>&#x1F40D; VIBORA</h2>
+      <p>Flechas o WASD para moverse</p>
+      <div id="diff-selector">
+        <button class="diff-btn" data-diff="easy">FÁCIL</button>
+        <button class="diff-btn active" data-diff="normal">NORMAL</button>
+        <button class="diff-btn" data-diff="hard">DIFÍCIL</button>
+      </div>
+      <button class="action-btn" id="btn-start">[ INICIAR ]</button>
+      <button class="action-btn secondary" id="btn-show-ranking">ver ranking</button>
+    </div>
+
+    <!-- Pantalla de game over: ingreso de nombre -->
+    <div class="overlay" id="overlay-gameover">
+      <h2>GAME OVER</h2>
+      <p class="final-score" id="final-score"></p>
+      <p id="new-record" style="color:#ffdd00;display:none;">&#x2605; NUEVO RÉCORD &#x2605;</p>
+      <div id="name-section">
+        <label for="player-name">Ingresa tu nombre:</label>
+        <input id="player-name" type="text" maxlength="12" placeholder="JUGADOR" autocomplete="off" spellcheck="false" />
+        <button class="action-btn" id="btn-save">[ GUARDAR ]</button>
+      </div>
+      <button class="action-btn secondary" id="btn-skip">saltar</button>
+    </div>
+
+    <!-- Pantalla de ranking -->
+    <div class="overlay" id="overlay-ranking">
+      <h2>RANKING</h2>
+      <div style="width:100%;max-width:300px;">
+        <table id="leaderboard-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Nombre</th>
+              <th style="text-align:right">Pts</th>
+              <th style="text-align:right">Dif</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body"></tbody>
+        </table>
+      </div>
+      <p class="loading" id="loading-msg" style="display:none;">cargando...</p>
+      <div class="btn-row">
+        <button class="action-btn" id="btn-play-again">[ JUGAR ]</button>
+        <button class="action-btn secondary" id="btn-menu">menú</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ─── CONFIG & FIREBASE ───────────────────────────────────────────────────────
+const CELL   = 20;
+const COLS   = 20;
+const ROWS   = 20;
+const SPEEDS = { easy: 160, normal: 100, hard: 55 };
+const MAX_SCORES = 10;
+const DIFF_LABEL = { easy: 'FÁCIL', normal: 'NORM', hard: 'DIFÍC' };
+
+// Configuración de Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyBYt3TBAkyNbQb6nMgR4lR2ufMDEjg2itE",
+  authDomain: "vibora-79252.firebaseapp.com",
+  projectId: "vibora-79252",
+  storageBucket: "vibora-79252.applestorage.app",
+  messagingSenderId: "155256784565",
+  appId: "1:155256784565:web:0e394253bd3a6ce93fa0fc"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const SCORES_COLLECTION = 'scores';
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let snake, dir, nextDir, food, score, highScore, gameLoop, difficulty, state;
+let scoresCache = []; // Cache local para performance
+
+// ─── FIRESTORE FUNCTIONS ─────────────────────────────────────────────────────
+async function loadScores() {
+  try {
+    const querySnapshot = await db.collection(SCORES_COLLECTION)
+      .orderBy('score', 'desc')
+      .limit(MAX_SCORES)
+      .get();
+
+    scoresCache = querySnapshot.docs.map(doc => doc.data());
+    return scoresCache;
+  } catch(e) {
+    console.error('Error loading scores:', e);
+    return [];
+  }
+}
+
+async function saveScore(name, pts, diff) {
+  try {
+    await db.collection(SCORES_COLLECTION).add({
+      name: name.toUpperCase().trim() || 'ANON',
+      score: pts,
+      diff,
+      timestamp: new Date(),
+      date: new Date().toLocaleDateString('es')
+    });
+  } catch(e) {
+    console.error('Error saving score:', e);
+  }
+}
+
+async function getHighScore() {
+  const scores = await loadScores();
+  return scores.length > 0 ? scores[0].score : 0;
+}
+
+// ─── AUDIO ───────────────────────────────────────────────────────────────────
+let audioCtx = null;
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(freq, type, duration, gain = 0.3, startFreq = null) {
+  try {
+    const ctx = getAudio();
+    const osc = ctx.createOscillator();
+    const vol = ctx.createGain();
+    osc.connect(vol);
+    vol.connect(ctx.destination);
+    osc.type = type;
+    if (startFreq) {
+      osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(freq, ctx.currentTime + duration);
+    } else {
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    }
+    vol.gain.setValueAtTime(gain, ctx.currentTime);
+    vol.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch(e) {}
+}
+
+function soundEat()   { playTone(880, 'square', 0.08, 0.2, 440); }
+function soundDie()   { playTone(80,  'sawtooth', 0.5, 0.3, 400); }
+function soundStart() {
+  [523, 659, 784].forEach((f, i) =>
+    setTimeout(() => playTone(f, 'square', 0.12, 0.15), i * 100)
+  );
+}
+
+// ─── CANVAS ──────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+
+function drawGrid() {
+  ctx.strokeStyle = '#0d1f0f';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x <= COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * CELL, 0); ctx.lineTo(x * CELL, ROWS * CELL); ctx.stroke();
+  }
+  for (let y = 0; y <= ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * CELL); ctx.lineTo(COLS * CELL, y * CELL); ctx.stroke();
+  }
+}
+
+function drawSnake() {
+  snake.forEach((seg, i) => {
+    const isHead = i === 0;
+    const px = seg.x * CELL, py = seg.y * CELL;
+    ctx.fillStyle = isHead ? '#00ff41' : '#00cc33';
+    ctx.fillRect(px + 1, py + 1, CELL - 2, CELL - 2);
+    ctx.strokeStyle = isHead ? '#aaffbb' : '#005511';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px + 2, py + 2, CELL - 4, CELL - 4);
+    if (isHead) {
+      ctx.fillStyle = '#000';
+      let e1x, e1y, e2x, e2y;
+      if      (dir.x === 1)  { e1x=px+14; e1y=py+5;  e2x=px+14; e2y=py+12; }
+      else if (dir.x === -1) { e1x=px+3;  e1y=py+5;  e2x=px+3;  e2y=py+12; }
+      else if (dir.y === -1) { e1x=px+5;  e1y=py+3;  e2x=px+12; e2y=py+3;  }
+      else                   { e1x=px+5;  e1y=py+14; e2x=px+12; e2y=py+14; }
+      ctx.fillRect(e1x, e1y, 3, 3);
+      ctx.fillRect(e2x, e2y, 3, 3);
+    }
+  });
+}
+
+let foodBlink = 0;
+function drawFood() {
+  foodBlink = (foodBlink + 1) % 20;
+  const alpha = 0.6 + 0.4 * Math.sin(foodBlink * Math.PI / 10);
+  ctx.fillStyle = `rgba(255, 60, 40, ${alpha})`;
+  ctx.fillRect(food.x * CELL + 2, food.y * CELL + 2, CELL - 4, CELL - 4);
+  ctx.strokeStyle = `rgba(255, 180, 60, ${alpha})`;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(food.x * CELL + 3, food.y * CELL + 3, CELL - 6, CELL - 6);
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#050f07';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+  drawFood();
+  drawSnake();
+}
+
+// ─── OVERLAYS ────────────────────────────────────────────────────────────────
+function showOverlay(id) {
+  ['overlay-menu', 'overlay-gameover', 'overlay-ranking'].forEach(ov => {
+    document.getElementById(ov).style.display = (ov === id) ? 'flex' : 'none';
+  });
+}
+
+function hideAllOverlays() {
+  ['overlay-menu', 'overlay-gameover', 'overlay-ranking'].forEach(ov => {
+    document.getElementById(ov).style.display = 'none';
+  });
+}
+
+// ─── LEADERBOARD ─────────────────────────────────────────────────────────────
+function renderLeaderboard(highlightScore = null) {
+  const tbody = document.getElementById('leaderboard-body');
+  tbody.innerHTML = '';
+
+  if (scoresCache.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="4" style="text-align:center;color:#336644;padding:0.5rem">Sin puntajes aún</td>';
+    tbody.appendChild(tr);
+    return;
+  }
+
+  let highlightIdx = -1;
+  if (highlightScore !== null) {
+    highlightIdx = scoresCache.findIndex(s => s.score === highlightScore);
+  }
+
+  scoresCache.forEach((entry, i) => {
+    const tr = document.createElement('tr');
+    if (i === highlightIdx) {
+      tr.classList.add('highlight');
+      highlightIdx = -1;
+    }
+    tr.innerHTML = `
+      <td class="rank">${i + 1}</td>
+      <td>${entry.name}</td>
+      <td class="pts">${entry.score}</td>
+      <td class="diff-tag">${DIFF_LABEL[entry.diff] || entry.diff}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ─── LÓGICA DEL JUEGO ────────────────────────────────────────────────────────
+function spawnFood() {
+  let pos;
+  do {
+    pos = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
+  } while (snake.some(s => s.x === pos.x && s.y === pos.y));
+  food = pos;
+}
+
+function initGame() {
+  snake     = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+  dir       = { x: 1, y: 0 };
+  nextDir   = { x: 1, y: 0 };
+  score     = 0;
+  foodBlink = 0;
+  updateHUD();
+  spawnFood();
+}
+
+function updateHUD() {
+  document.getElementById('score-display').textContent = score;
+  document.getElementById('hi-display').textContent    = highScore;
+}
+
+function tick() {
+  dir = { ...nextDir };
+  const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) return endGame();
+  if (snake.slice(0, -1).some(s => s.x === head.x && s.y === head.y)) return endGame();
+
+  snake.unshift(head);
+  if (head.x === food.x && head.y === food.y) {
+    score += 10;
+    updateHUD();
+    soundEat();
+    spawnFood();
+  } else {
+    snake.pop();
+  }
+  render();
+}
+
+function startGame() {
+  state = 'playing';
+  hideAllOverlays();
+  initGame();
+  render();
+  soundStart();
+  clearInterval(gameLoop);
+  gameLoop = setInterval(tick, SPEEDS[difficulty]);
+}
+
+function endGame() {
+  clearInterval(gameLoop);
+  state = 'gameover';
+  soundDie();
+
+  const topScore = scoresCache.length > 0 ? scoresCache[0].score : 0;
+  const isNewRecord = score > topScore;
+
+  document.getElementById('final-score').textContent = `Puntaje: ${score}`;
+  document.getElementById('new-record').style.display = isNewRecord ? 'block' : 'none';
+
+  const lastName = localStorage.getItem('vibora-last-name') || '';
+  const nameInput = document.getElementById('player-name');
+  nameInput.value = lastName;
+
+  showOverlay('overlay-gameover');
+  setTimeout(() => nameInput.focus(), 50);
+}
+
+async function submitScore() {
+  const nameInput = document.getElementById('player-name');
+  const name = nameInput.value.trim() || 'ANON';
+  localStorage.setItem('vibora-last-name', name);
+
+  await saveScore(name, score, difficulty);
+  await loadScores();
+  highScore = scoresCache.length > 0 ? scoresCache[0].score : 0;
+  updateHUD();
+  renderLeaderboard(score);
+  showOverlay('overlay-ranking');
+}
+
+async function showRankingScreen() {
+  showOverlay('overlay-ranking');
+  state = 'ranking';
+  document.getElementById('loading-msg').style.display = 'block';
+  await loadScores();
+  document.getElementById('loading-msg').style.display = 'none';
+  renderLeaderboard();
+}
+
+// ─── INPUT ───────────────────────────────────────────────────────────────────
+const KEYS = {
+  ArrowUp:    { x: 0, y: -1 }, w: { x: 0, y: -1 }, W: { x: 0, y: -1 },
+  ArrowDown:  { x: 0, y:  1 }, s: { x: 0, y:  1 }, S: { x: 0, y:  1 },
+  ArrowLeft:  { x: -1, y: 0 }, a: { x: -1, y: 0 }, A: { x: -1, y: 0 },
+  ArrowRight: { x: 1,  y: 0 }, d: { x: 1,  y: 0 }, D: { x: 1,  y: 0 },
+};
+
+document.addEventListener('keydown', e => {
+  if (state === 'gameover') return;
+
+  if (e.key === 'r' || e.key === 'R') {
+    if (state === 'ranking') { startGame(); return; }
+  }
+  if ((e.key === 'Enter' || e.key === ' ') && state === 'menu') {
+    startGame(); return;
+  }
+  if (state !== 'playing') return;
+
+  const d = KEYS[e.key];
+  if (!d) return;
+  if (d.x === -dir.x && d.y === -dir.y) return;
+  nextDir = d;
+  if (e.key.startsWith('Arrow')) e.preventDefault();
+});
+
+document.getElementById('player-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitScore();
+});
+
+// ─── BOTONES UI ──────────────────────────────────────────────────────────────
+difficulty = 'normal';
+
+document.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.diff;
+  });
+});
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+
+document.getElementById('btn-show-ranking').addEventListener('click', showRankingScreen);
+
+document.getElementById('btn-save').addEventListener('click', submitScore);
+
+document.getElementById('btn-skip').addEventListener('click', async () => {
+  await loadScores();
+  renderLeaderboard();
+  showOverlay('overlay-ranking');
+});
+
+document.getElementById('btn-play-again').addEventListener('click', startGame);
+
+document.getElementById('btn-menu').addEventListener('click', () => {
+  state = 'menu';
+  showOverlay('overlay-menu');
+});
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+(async function init() {
+  highScore = await getHighScore();
+  state = 'menu';
+  updateHUD();
+
+  ctx.fillStyle = '#050f07';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawGrid();
+})();
+</script>
+</body>
+</html>
